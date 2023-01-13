@@ -7,13 +7,13 @@ from VGG16 import truncated_VGG16
 
 
 class ScaleMap(nn.Module):
-    def __init__(self, channels, box_num, class_num):
+    def __init__(self, channels, box_num, class_num, second_stride):
         super(ScaleMap, self).__init__()
         if len(channels) != 3:
             raise ValueError('ConvBlock must have exactly 3 channel values')
         self.conv1 = nn.Conv2d(channels[0], channels[1], kernel_size=1, stride=1)
         self.norm1 = nn.BatchNorm2d(channels[1])
-        self.conv2 = nn.Conv2d(channels[1], channels[2], kernel_size=3, stride=1)
+        self.conv2 = nn.Conv2d(channels[1], channels[2], kernel_size=3, stride=second_stride)
         self.norm2 = nn.BatchNorm2d(channels[2])
         self.offset = nn.Conv2d(channels[2], box_num * 4, kernel_size=3, stride=1)
         self.confid = nn.Conv2d(channels[2], box_num * class_num, kernel_size=3, stride=1)
@@ -47,10 +47,10 @@ class SSD(nn.Module):
         self.norm2 = nn.BatchNorm2d(1024)
         self.scale2_offs = nn.Conv2d(1024, 6 * 4, kernel_size=3, stride=1)
         self.scale2_conf = nn.Conv2d(1024, 6 * class_num, kernel_size=3, stride=1)
-        self.scale3 = ScaleMap((1024, 256, 512), 6, class_num)
-        self.scale4 = ScaleMap((512, 128, 256), 6, class_num)
-        self.scale5 = ScaleMap((256, 128, 256), 4, class_num)
-        self.scale6 = ScaleMap((256, 128, 256), 4, class_num)
+        self.scale3 = ScaleMap((1024, 256, 512), 6, class_num, second_stride=2)
+        self.scale4 = ScaleMap((512, 128, 256), 6, class_num, second_stride=2)
+        self.scale5 = ScaleMap((256, 128, 256), 4, class_num, second_stride=1)
+        self.scale6 = ScaleMap((256, 128, 256), 4, class_num, second_stride=1)
 
     def _init_weights(self, module):
         pass
