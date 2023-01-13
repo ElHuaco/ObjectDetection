@@ -1,5 +1,6 @@
 # ObjectDetection
 1. Implementar SSD base con COCO -> https://github.com/amdegroot/ssd.pytorch
+  - We remove all the dropout layers and the fc8 layer. We fine-tune the resulting model using SGD with initial learning rate 10−3, 0.9 momentum, 0.0005 weight decay, and batch size 32
   - Data augmentation is crucial: To make the model more robust to various input object sizes and shapes, each training image is randomly sampled by one of the following options:
 – Use the entire original input image.
 – Sample a patch so that the minimum jaccard overlap with the objects is 0.1, 0.3,
