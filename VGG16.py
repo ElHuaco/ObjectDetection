@@ -48,7 +48,8 @@ class truncated_VGG16(nn.Module):
         self.layer5 = convblock(256, 512)
         self.layer6 = convblock(512, 512, pooling=True)
         self.layer7 = convblock(512, 512)
-        self.layer8 = convblock(512, 512, pooling=True)
+        self.layer8 = convblock(512, 512)
+        self.pool5 = nn.MaxPool2d(kernel_size=3, stride=1)
         
         self.n_layers = n_layers
         self.apply(self._init_weights)
@@ -65,9 +66,15 @@ class truncated_VGG16(nn.Module):
         
     def forward(self, x):
         # Input in the original paper is a 224x224 RGB image
-        layers = [self.layer1, self.layer2, self.layer3, self.layer4, self.layer5, self.layer6, self.layer7, self.layer8]
-        for layer in layers[:self.n_layers]:
-            x = layer(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.layer5(x)
+        x = self.layer6(x)
+        x = self.layer7(x)
+        x = self.layer8(x)
+        x = self.pool5(x)
         return x
         
         
