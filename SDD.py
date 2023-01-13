@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 import numpy as np
-from VGG16 import VGG
+from VGG16 import truncated_VGG16
 
 
 class ScaleMap(nn.Module):
@@ -28,10 +28,10 @@ class ScaleMap(nn.Module):
 
 
 class SSD(nn.Module):
-    def __init__(self, base='vgg', class_num=2):
+    def __init__(self, in_channels=3, base='vgg', class_num=2):
         super(SSD, self).__init__()
         if base == 'vgg':
-            self.base_network = VGG()
+            self.base_network = truncated_VGG16(in_channels, n_layers=5)
         # elif base == 'inception':
         #    self.base_network = Inception()
         else:

@@ -38,7 +38,7 @@ class convblock(nn.module):
 
 
 class truncated_VGG16(nn.Module):
-    def __init__(self, in_channels, out_channels, n_layers=5):
+    def __init__(self, in_channels, n_layers=5):
         super().__init__()
         
         self.layer1 = convblock(in_channels, 64, pooling=True)
