@@ -33,7 +33,7 @@ class SSD(nn.Module):
     def __init__(self, in_channels=3, base='vgg', class_num=2):
         super(SSD, self).__init__()
         if base == 'vgg':
-            self.base_network = truncated_VGG16(in_channels, n_layers=5)
+            self.base_network = truncated_VGG16(in_channels)
         # elif base == 'inception':
         #    self.base_network = Inception()
         else:
