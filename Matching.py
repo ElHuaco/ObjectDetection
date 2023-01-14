@@ -43,11 +43,14 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
 
     # Jaccard similarity
     jaccard = A_inter/A_union
+    
+    # Find the best matching ground truth box for each predicted box
+    best_gt = torch.argmax(jaccard, dim=1)
 
     # Matching value en función de la Jaccard similarity
     matches = (jaccard > threshold).float()
     
-    return matches
+    return matches, best_gt
 
     
 def hard_mining(matches, confidences, ratio=3):
@@ -66,6 +69,7 @@ def hard_mining(matches, confidences, ratio=3):
     n_positives = positives.size(dim=1).int()
     keep = sorted_negatives[:(ratio*n_positives)]
     
-     # return n_positives bc we will need it for the loss
-    return torch.cat(positives, keep), n_positives
+    # return n_positives bc we will need it for the loss
+    #torch.cat(positives, keep)
+    return positives, keep, n_positives
     
