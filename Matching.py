@@ -12,20 +12,21 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
 
     # Jaccard coefficient measures similarity between finite sample sets, 
     # it is defined as the size of the intersection divided by the size of the union of the sample sets
-
+    
+    # El input tienen que ser las dos esquinas opuestas: top-left y bottom-right
     '''
-    input: predicted_boxes - (N, 4): (n_boxes, (x_min, y_min, x_max, y_max))
-    input: target_boxes - (M, 4): (n_boxes, (x_min, y_min, x_max, y_max))
+    input: predicted_boxes - (N, 4): (n_boxes, (x1, y1, x2, y2))
+    input: target_boxes - (M, 4): (n_boxes, (x1, y1, x2, y2))
 
     output: matching - (N, M) - 0 for no match, 1 for match
     '''
 
     # Calcular la intersección
     # Create 4 tensors (N, M, 1) that compare the 4 values for each pair of boxes
-    inter_x1 = torch.max(predicted_box[:, None, 0], target_box[None, :, 0])
-    inter_y1 = torch.max(predicted_box[:, None, 1], target_box[None, :, 1])
-    inter_x2 = torch.min(predicted_box[:, None, 2], target_box[None, :, 2])
-    inter_y2 = torch.min(predicted_box[:, None, 3], target_box[None, :, 3])
+    inter_x1 = torch.max(predicted_boxes[:, None, 0], target_boxes[None, :, 0])
+    inter_y1 = torch.max(predicted_boxes[:, None, 1], target_boxes[None, :, 1])
+    inter_x2 = torch.min(predicted_boxes[:, None, 2], target_boxes[None, :, 2])
+    inter_y2 = torch.min(predicted_boxes[:, None, 3], target_boxes[None, :, 3])
 
     # Obtain the dimensions of the intersection by getting 'x_max - x_min', 'y_max - y_min'. If it's negative, set to 0.
     inter_W = torch.clamp(inter_x2 - inter_x1, min=0)
@@ -43,14 +44,11 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
 
     # Jaccard similarity
     jaccard = A_inter/A_union
-    
-    # Find the best matching ground truth box for each predicted box
-    best_gt = torch.argmax(jaccard, dim=1)
 
     # Matching value en función de la Jaccard similarity
     matches = (jaccard > threshold).float()
     
-    return matches, best_gt
+    return matches
 
     
 def hard_mining(matches, confidences, ratio=3):
@@ -67,9 +65,9 @@ def hard_mining(matches, confidences, ratio=3):
     
     # Take the top ratio*(num_positives)
     n_positives = positives.size(dim=1).int()
-    keep = sorted_negatives[:(ratio*n_positives)]
+    kept_negatives = sorted_negatives[:(ratio*n_positives)]
     
     # return n_positives bc we will need it for the loss
     #torch.cat(positives, keep)
-    return positives, keep, n_positives
+    return positives, kept_negatives, n_positives
     
