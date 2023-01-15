@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torchvision
 import numpy as np
 from VGG16 import truncated_VGG16
-
+from Matching import matching
 
 class ScaleMap(nn.Module):
     def __init__(self, channels, box_num, class_num, second_stride):
@@ -78,3 +78,33 @@ class SSD(nn.Module):
         offs = torch.cat((scale1_offs, scale2_offs, scale3_offs, scale4_offs, scale5_offs, scale6_offs), dim=1)
         conf = torch.cat((scale1_conf, scale2_conf, scale3_conf, scale4_conf, scale5_conf, scale6_conf), dim=1)
         return offs, conf
+
+    def predict(self, x):
+        """
+        Perform non-maximum suppression (nms) efficiently during inference. By using a con- fidence threshold of 0.01,
+        we can filter out most boxes.
+        We then apply nms with jaccard overlap of 0.45 per class and keep the top 200 detections per imag
+        """
+        # Para cada clase, elimina las filas que no superen 0.01.
+        #    Para cada par de predicciones restantes, calcular el IoU. Si es mayor o igual a 0.45, descartar la que
+        #    tenga menor confidence.
+        # i) Ordenar por confidence
+        # ii) Por orden, ir eliminando los restantes que tengar overlap de 0.45 o más, hasta haber recorrido todos.
+        # iii) Quedarse solo con 200 imágenes como mucho.
+        offs, conf = self.forward(x)
+        is_prediction = torch.ones(offs.shape, dtype=torch.bool)
+        for b in range(len(offs.shape[0])):
+            for c in range(len(self.class_num)):
+                class_conf_sorted, indeces = torch.sort(conf[b, :, c], dim=0)
+                for row, pred in enumerate(class_conf_sorted[:-1]):
+                    if pred > 0.01:
+                        non_overlapping = torch.logical_not(
+                            matching(offs[b, indeces[row], c], offs[b, indeces[row+1:], c], threshold=0.45))
+                        is_prediction[b, indeces[row+1:], c] = is_prediction[b, indeces[row+1:], c] * non_overlapping
+                    else:
+                        is_prediction[b, indeces[row], c] = False
+        return offs[is_prediction], conf[is_prediction]
+
+
+
+
