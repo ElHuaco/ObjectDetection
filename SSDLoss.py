@@ -16,7 +16,7 @@ def confidence_loss(positive_box_conf, negative_box_conf):
 def location_loss(pred_boxes, gt_boxes, best_gt):    
     return nn.L1Loss()(pred_boxes[best_gt], gt_boxes[best_gt])
 
-def SDDloss(pred_boxes, pred_confidences, gt_boxes, gt_categories):
+def SSDloss(pred_boxes, pred_confidences, gt_boxes, gt_categories):
     
     # Compute matching between predictions and ground truth boxes
     matches, best_gt = matching(pred_boxes, gt_boxes)
@@ -32,6 +32,6 @@ def SDDloss(pred_boxes, pred_confidences, gt_boxes, gt_categories):
     
     loss = (loc_loss + conf_loss)/n_positives # alpha is 1(?)
     
-    return 
+    return loss
     
         
