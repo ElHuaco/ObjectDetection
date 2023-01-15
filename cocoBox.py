@@ -1,5 +1,6 @@
 import torch
 import torchvision
+import torchvision.transforms.functional as TF
 from torch.utils.data import Dataset, Subset, DataLoader
 from pycocotools.coco import COCO
 import numpy as np
@@ -120,20 +121,20 @@ class CocoDataSet(Dataset):
         target['labels'] = np.eye(len(self.cats))[self.labels[self.ids[index]]]
         if self.augmentation:
             if np.random.rand() < 0.5:
-                image = torchvision.transforms.functional.hflip(image)
+                image = TF.hflip(image)
                 for box_idx in range(len(target['boxes'])):
                     target['boxes'][box_idx, 0] = 1 - target['boxes'][box_idx, 0] - target['boxes'][box_idx, 2]
         if self.transform:
             image = self.transform(image)
         if self.augmentation:
             rand = 2 * np.random.rand() - 1
-            image = torchvision.transforms.functional.adjust_brightness(image,  1 + rand * self.augmentation)
+            image = TF.adjust_brightness(image,  1 + rand * self.augmentation)
             rand = 2 * np.random.rand() - 1
-            image = torchvision.transforms.functional.adjust_contrast(image,  1 + rand * self.augmentation)
+            image = TF.adjust_contrast(image,  1 + rand * self.augmentation)
             rand = 2 * np.random.rand() - 1
-            image = torchvision.transforms.functional.adjust_saturation(image,  1 + rand * self.augmentation)
+            image = TF.adjust_saturation(image,  1 + rand * self.augmentation)
             rand = np.random.rand() - 0.5
-            image = torchvision.transforms.functional.adjust_hue(image, rand * self.augmentation / 5)
+            image = TF.adjust_hue(image, rand * self.augmentation / 5)
             pass
         return image, target
 
