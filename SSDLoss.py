@@ -32,6 +32,6 @@ def SDDloss(pred_boxes, pred_confidences, gt_boxes, gt_categories):
     
     loss = (loc_loss + conf_loss)/n_positives # alpha is 1(?)
     
-    return 
+    return loss
     
         
