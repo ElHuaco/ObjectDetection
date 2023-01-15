@@ -1,5 +1,7 @@
 import torch
 import torchvision
+from torchvision.io import read_image
+import torchvision.transforms.functional as TF
 from torch.utils.data import Dataset, Subset, DataLoader
 from pycocotools.coco import COCO
 import numpy as np
@@ -66,7 +68,8 @@ def my_collate(batch):
 
 
 class CocoDataSet(Dataset):
-    def __init__(self, annt_file, data_dir=DATAPATH, cats=None, size=10000, transform=None, fetch_type='intersection', crop_size=None, augmentation=None):
+    def __init__(self, annt_file, data_dir=DATAPATH, cats=None, size=10000, transform=None, fetch_type='intersection',
+                 crop_size=None, augmentation=None):
         self.data_dir = data_dir
         self.transform = transform
         self.crop_size = crop_size
@@ -74,19 +77,19 @@ class CocoDataSet(Dataset):
         coco = COCO(data_dir + 'annotations/' + annt_file)
         self.cats = {k: idx for idx, k in enumerate([COCO_CLASSES[cat] for cat in cats])}
         print('Categories:', self.cats)
-        catIds = coco.getCatIds(catNms=cats)
+        cat_ids = coco.getCatIds(catNms=cats)
         if fetch_type == 'intersection' or len(cats) <= 1:
-            imgIds = coco.getImgIds(catIds=catIds)
+            img_ids = coco.getImgIds(catIds=cat_ids)
         elif fetch_type == 'union':
-            imgIds = []
-            for cat in catIds:
+            img_ids = []
+            for cat in cat_ids:
                 temp = coco.getImgIds(catIds=cat)
-                imgIds += [x for x in temp if x not in imgIds]
+                img_ids += [x for x in temp if x not in img_ids]
         else:
             raise ValueError('Must fetch image intersection or union for multiple categories')
-        self.ids = [x for x in imgIds if x not in GRAYS]
-        annIds = coco.getAnnIds(imgIds=self.ids, catIds=catIds, iscrowd=None)
-        anns = coco.loadAnns(annIds)
+        self.ids = [x for x in img_ids if x not in GRAYS]
+        ann_ids = coco.getAnnIds(imgIds=self.ids, catIds=cat_ids, iscrowd=None)
+        anns = coco.loadAnns(ann_ids)
         self.labels = {x: [] for x in self.ids}
         self.boxes = {x: [] for x in self.ids}
         for d in anns:
@@ -108,7 +111,7 @@ class CocoDataSet(Dataset):
         if torch.is_tensor(index):
             index = index.tolist()
         # __getitem__ actually reads the img content
-        image = torchvision.io.read_image(self.data_dir + '{:012}'.format(self.ids[index]) + '.jpg').to(torch.float32) / 255
+        image = read_image(self.data_dir + '{:012}'.format(self.ids[index]) + '.jpg').to(torch.float32) / 255
         target = {'boxes': np.array(self.boxes[self.ids[index]])}
         if self.crop_size:
             image, target['boxes'] = RandomCrop(self.crop_size)(image, target['boxes'])
@@ -120,20 +123,20 @@ class CocoDataSet(Dataset):
         target['labels'] = np.eye(len(self.cats))[self.labels[self.ids[index]]]
         if self.augmentation:
             if np.random.rand() < 0.5:
-                image = torchvision.transforms.functional.hflip(image)
+                image = TF.hflip(image)
                 for box_idx in range(len(target['boxes'])):
                     target['boxes'][box_idx, 0] = 1 - target['boxes'][box_idx, 0] - target['boxes'][box_idx, 2]
         if self.transform:
             image = self.transform(image)
         if self.augmentation:
             rand = 2 * np.random.rand() - 1
-            image = torchvision.transforms.functional.adjust_brightness(image,  1 + rand * self.augmentation)
+            image = TF.adjust_brightness(image,  1 + rand * self.augmentation)
             rand = 2 * np.random.rand() - 1
-            image = torchvision.transforms.functional.adjust_contrast(image,  1 + rand * self.augmentation)
+            image = TF.adjust_contrast(image,  1 + rand * self.augmentation)
             rand = 2 * np.random.rand() - 1
-            image = torchvision.transforms.functional.adjust_saturation(image,  1 + rand * self.augmentation)
+            image = TF.adjust_saturation(image,  1 + rand * self.augmentation)
             rand = np.random.rand() - 0.5
-            image = torchvision.transforms.functional.adjust_hue(image, rand * self.augmentation / 5)
+            image = TF.adjust_hue(image, rand * self.augmentation / 5)
             pass
         return image, target
 
@@ -167,4 +170,3 @@ def load_coco_dataset(batch_size=64, cats=None, size=10000, dim=64, fetch_type='
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=my_collate)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate)
     return train_loader, valid_loader
-
