@@ -15,47 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
-
-def matching(predicted_boxes, target_boxes, threshold=0.5):
-    
-    '''
-    input: predicted_boxes - (N, 4) - top-left and bottom-right coordinates of the box - (n_boxes, (x1, y1, x2, y2))
-    input: target_boxes - (M, 4) - top-left and bottom-right coordinates of the box - (n_boxes, (x1, y1, x2, y2))
-
-    output: matching - (N, M) - boolean type 
-    '''
-
-    # Calcular la intersección
-    # Create 4 tensors (N, M, 1) that compare the 4 values for each pair of boxes
-    # This gives us the top-left and bottom-right corners of the intersection
-    inter_x1 = torch.max(predicted_boxes[:, None, 0], target_boxes[None, :, 0])
-    inter_y1 = torch.max(predicted_boxes[:, None, 1], target_boxes[None, :, 1])
-    inter_x2 = torch.min(predicted_boxes[:, None, 2], target_boxes[None, :, 2])
-    inter_y2 = torch.min(predicted_boxes[:, None, 3], target_boxes[None, :, 3])
-
-    # Obtain the dimensions of the intersection. If it's negative, no intersection -> set to 0.
-    inter_W = torch.clamp(inter_x2 - inter_x1, min=0)
-    inter_H = torch.clamp(inter_y2 - inter_y1, min=0)
-
-    # Obtain the area for each pair of boxes (element-wise multiplication)
-    A_inter = inter_H*inter_W # size (N, M, 1)
-
-    # Area of boxes
-    A_predicted = (predicted_box[:, 2] - predicted_box[:, 0])*(predicted_box[:, 3] - predicted_box[:, 1]) # size (N, 1)
-    A_target = (target_box[:, 2] - target_box[:, 0])*(target_box[:, 3] - target_box[:, 1]) # size (M, 1)
-
-    # Union area - broadcast values in A_predicted to add each of the areas to every area in A_target
-    A_union = A_predicted[:, None] + A_target - A_inter # size (N, M, 1)
-
-    # Jaccard coef: intersection divided by the union of the sample sets - measures similarity between 2 finite sets
-    # elementwise division to get the jaccard similarity for every pair of boxes
-    jaccard = A_inter/A_union 
-
-    # Matching value en función de la Jaccard similarity y el threshold
-    matches = (jaccard > threshold)
-    
-    return matches
-
+from utils import matching
 
 
 def SSDloss(pred_boxes, pred_confidences, gt_boxes, gt_labels, hard_mining_ratio=3, smoothL1_beta=1.0):
