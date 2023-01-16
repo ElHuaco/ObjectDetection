@@ -35,14 +35,8 @@ class ScaleMap(nn.Module):
 
 
 class SSD(nn.Module):
-    def __init__(self, default_boxes, in_channels=3, base='vgg', class_num=2):
+    def __init__(self, in_channels=3, base='vgg', class_num=2):
         super(SSD, self).__init__()
-        self.boxes_1 = default_boxes[0]
-        self.boxes_2 = default_boxes[1]
-        self.boxes_3 = default_boxes[2]
-        self.boxes_4 = default_boxes[3]
-        self.boxes_5 = default_boxes[4]
-        self.boxes_6 = default_boxes[5]
         if base == 'vgg':
             self.base_network = truncated_VGG16(in_channels)
         # elif base == 'inception':
