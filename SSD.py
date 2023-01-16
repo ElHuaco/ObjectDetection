@@ -93,10 +93,11 @@ class SSD(nn.Module):
         _, scale6_offs, scale6_conf = self.scale6(x)
         scale6_coords = offsets2coords(scale6_offs, self.boxes_6)
         
-        coords = torch.cat((scale1_coords, scale2_coords, scale3_coords, scale4_coords, scale5_coords, scale6_coords), dim=1)
         offs = torch.cat((scale1_offs, scale2_offs, scale3_offs, scale4_offs, scale5_offs, scale6_offs), dim=1)
+        # TODO: offs2coords para reemplazar lo siguiente:
+        coords = torch.cat((scale1_coords, scale2_coords, scale3_coords, scale4_coords, scale5_coords, scale6_coords), dim=1)
         conf = torch.cat((scale1_conf, scale2_conf, scale3_conf, scale4_conf, scale5_conf, scale6_conf), dim=1)
-        return cords, conf #, offs
+        return cords, conf
 
     
     def predict(self, x):
