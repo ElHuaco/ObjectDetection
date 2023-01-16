@@ -1,4 +1,5 @@
 # Use predefined boxes and offsets to get the coordinates of predicted boxes in the input image scale
+# TODO: define here the default boxes
 def offsets2coords(offsets, default_boxes):
     '''
     input: offsets - (B, 4*n_boxes, H, W) - coords in the form (cx, cy, w, h)
