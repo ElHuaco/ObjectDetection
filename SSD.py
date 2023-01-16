@@ -35,14 +35,8 @@ class ScaleMap(nn.Module):
 
 
 class SSD(nn.Module):
-    def __init__(self, default_boxes, in_channels=3, base='vgg', class_num=2):
+    def __init__(self, in_channels=3, base='vgg', class_num=2):
         super(SSD, self).__init__()
-        self.boxes_1 = default_boxes[0]
-        self.boxes_2 = default_boxes[1]
-        self.boxes_3 = default_boxes[2]
-        self.boxes_4 = default_boxes[3]
-        self.boxes_5 = default_boxes[4]
-        self.boxes_6 = default_boxes[5]
         if base == 'vgg':
             self.base_network = truncated_VGG16(in_channels)
         # elif base == 'inception':
@@ -79,13 +73,13 @@ class SSD(nn.Module):
         _, _, h, w = x.size
         scale2_offs = torch.reshape(self.scale2_offs(x), (-1, h * w * 6, 4))
         scale2_conf = torch.reshape(self.scale2_conf(x), (-1, h * w * 6, self.class_num))
-        scale2_coords = offsets2coords(scale1_offs, self.boxes_2)
+        scale2_coords = offsets2coords(scale2_offs, self.boxes_2)
         
         x, scale3_offs, scale3_conf = self.scale3(x)
         scale3_coords = offsets2coords(scale3_offs, self.boxes_3)
         
         x, scale4_offs, scale4_conf = self.scale4(x)
-        scale4_coords = offsets2coords(scale1_offs, self.boxes_4)
+        scale4_coords = offsets2coords(scale4_offs, self.boxes_4)
         
         x, scale5_offs, scale5_conf = self.scale5(x)
         scale5_coords = offsets2coords(scale5_offs, self.boxes_5)
@@ -94,9 +88,8 @@ class SSD(nn.Module):
         scale6_coords = offsets2coords(scale6_offs, self.boxes_6)
         
         coords = torch.cat((scale1_coords, scale2_coords, scale3_coords, scale4_coords, scale5_coords, scale6_coords), dim=1)
-        offs = torch.cat((scale1_offs, scale2_offs, scale3_offs, scale4_offs, scale5_offs, scale6_offs), dim=1)
         conf = torch.cat((scale1_conf, scale2_conf, scale3_conf, scale4_conf, scale5_conf, scale6_conf), dim=1)
-        return cords, conf #, offs
+        return coords, conf
 
     
     def predict(self, x):

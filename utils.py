@@ -1,4 +1,5 @@
 # Use predefined boxes and offsets to get the coordinates of predicted boxes in the input image scale
+# TODO: define here the default boxes
 def offsets2coords(offsets, default_boxes):
     '''
     input: offsets - (B, 4*n_boxes, W, H) - coords in the form (cx, cy, w, h)
@@ -46,6 +47,7 @@ def create_boxes(aspect_ratios, scale, FM_size, extra_box_scale=None):
         widths.append(extra_box_scale*a**(1/2))
         heights.append(extra_box_scale/a**(1/2))
     
+<<<<<<< HEAD
     prev_indx, i, j = 0, 0, 0
     # Set centers and store the coordinates
     for pix_indx in torch.arange(n_boxes, total_boxes+1, n_boxes):
@@ -60,3 +62,18 @@ def create_boxes(aspect_ratios, scale, FM_size, extra_box_scale=None):
             i += 1
 
     return default_boxes      
+=======
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+>>>>>>> 8be620ae8b346ae9e6266712417f9456f0e6c91e
