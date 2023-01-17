@@ -100,7 +100,7 @@ class SSD(nn.Module):
         # ii) Por orden, ir eliminando los restantes que tengar overlap de 0.45 o más, hasta haber recorrido todos.
         # iii) Quedarse solo con 200 imágenes como mucho.
         coords, conf = self.forward(x)
-        is_prediction = torch.ones(coords.shape, dtype=torch.bool)
+        is_prediction = torch.ones(conf.shape, dtype=torch.bool)
         for b in range(len(coords.shape[0])):
             for c in range(len(self.class_num)):
                 class_conf_sorted, indeces = torch.sort(conf[b, :, c], dim=0)
