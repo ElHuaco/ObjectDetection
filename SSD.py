@@ -89,16 +89,10 @@ class SSD(nn.Module):
 
     def predict(self, x):
         """
-        Perform non-maximum suppression (nms) efficiently during inference. By using a con- fidence threshold of 0.01,
+        Perform non-maximum suppression (nms) efficiently during inference. By using a confidence threshold of 0.01,
         we can filter out most boxes.
         We then apply nms with jaccard overlap of 0.45 per class and keep the top 200 detections per imag
         """
-        # Para cada clase, elimina las filas que no superen 0.01.
-        #    Para cada par de predicciones restantes, calcular el IoU. Si es mayor o igual a 0.45, descartar la que
-        #    tenga menor confidence.
-        # i) Ordenar por confidence
-        # ii) Por orden, ir eliminando los restantes que tengar overlap de 0.45 o más, hasta haber recorrido todos.
-        # iii) Quedarse solo con 200 imágenes como mucho.
         coords, conf = self.forward(x)
         is_prediction = torch.ones(conf.shape, dtype=torch.bool)
         for b in range(len(coords.shape[0])):
@@ -111,5 +105,5 @@ class SSD(nn.Module):
                         is_prediction[b, indeces[row+1:], c] *= non_overlapping.squeeze(0)
                     else:
                         is_prediction[b, indeces[row], c] = False
-        is_prediction = torch.sum(is_prediction, dim=1)
+        is_prediction = torch.sum(is_prediction, dim=1, dtype=torch.bool)
         return coords[is_prediction], conf[is_prediction]
