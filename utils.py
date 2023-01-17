@@ -6,8 +6,11 @@ import numpy as np
 
 # Useful functions for training SSD
 
+
 def matching(predicted_boxes, target_boxes, threshold=0.5):
-    # Relaciona las ground truth boxes con las predicted boxes; llamamos negativos a todos los pares cuya Jaccard similarity < 0.5
+
+    # Relaciona las ground truth boxes con las predicted boxes;
+    # llamamos negativos a todos los pares cuya Jaccard similarity < 0.5
     
     '''
     input: predicted_boxes - (N, 4) - top-left and bottom-right coordinates of the box - (n_boxes, (x1, y1, x2, y2))
@@ -124,7 +127,7 @@ def set_scales(scale_min, scale_max, n_scales):
     return scales
 
     
-def create_all_boxes(FM_sizes = [38, 19, 10, 5, 3, 1]):
+def create_all_boxes(FM_sizes = (8, 19, 10, 5, 3, 1)):
        
     aspect_ratios = ([1., 2., 0.5],
                      [1., 2., 3., 0.5, .333],
@@ -134,7 +137,7 @@ def create_all_boxes(FM_sizes = [38, 19, 10, 5, 3, 1]):
                      [1., 2., 0.5])
     
     scales = set_scales(0.2, 0.9, 6)
-    default_boxes = torch.empty(size=(0,4))
+    default_boxes = torch.empty(size=(0, 4))
     for k in range(6):
         try:
             extra_box = (scales[k]*scales[k+1])**(1/2)
@@ -145,4 +148,4 @@ def create_all_boxes(FM_sizes = [38, 19, 10, 5, 3, 1]):
                                                                   scale = scales[k], 
                                                                   FM_size = FM_sizes[k], 
                                                                   extra_box_scale=extra_box)))
-    return default_boxes    
+    return default_boxes
