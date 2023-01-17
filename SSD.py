@@ -99,16 +99,17 @@ class SSD(nn.Module):
         # i) Ordenar por confidence
         # ii) Por orden, ir eliminando los restantes que tengar overlap de 0.45 o más, hasta haber recorrido todos.
         # iii) Quedarse solo con 200 imágenes como mucho.
-        offs, conf = self.forward(x)
-        is_prediction = torch.ones(offs.shape, dtype=torch.bool)
-        for b in range(len(offs.shape[0])):
+        coords, conf = self.forward(x)
+        is_prediction = torch.ones(coords.shape, dtype=torch.bool)
+        for b in range(len(coords.shape[0])):
             for c in range(len(self.class_num)):
                 class_conf_sorted, indeces = torch.sort(conf[b, :, c], dim=0)
                 for row, pred in enumerate(class_conf_sorted[:-1]):
                     if pred > 0.01:
                         non_overlapping = torch.logical_not(
-                            matching(offs[b, indeces[row], c], offs[b, indeces[row+1:], c], threshold=0.45))
-                        is_prediction[b, indeces[row+1:], c] = is_prediction[b, indeces[row+1:], c] * non_overlapping
+                            matching(coords[b, indeces[row], c], coords[b, indeces[row+1:], c], threshold=0.45))
+                        is_prediction[b, indeces[row+1:], c] *= non_overlapping.squeeze(0)
                     else:
                         is_prediction[b, indeces[row], c] = False
-        return offs[is_prediction], conf[is_prediction]
+        is_prediction = torch.sum(is_prediction, dim=1)
+        return coords[is_prediction], conf[is_prediction]
