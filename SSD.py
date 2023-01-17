@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torchvision
 import numpy as np
 from VGG16 import truncated_VGG16
-from utils import matching, create_all_boxes
+from utils import matching, create_all_boxes, offsets2coords
 
 
 class ScaleMap(nn.Module):
@@ -82,12 +82,11 @@ class SSD(nn.Module):
         x, scale5_offs, scale5_conf = self.scale5(x)
         _, scale6_offs, scale6_conf = self.scale6(x)
 
-        coords = offsets2coords(torch.cat((scale1_offs, scale2_offs, scale3_offs, scale4_offs, scale5_offs, scale6_offs), dim=1),
-                                self.predefined_boxes)
+        offs = torch.cat((scale1_offs, scale2_offs, scale3_offs, scale4_offs, scale5_offs, scale6_offs), dim=1)
+        coords = offsets2coords(offs, self.predefined_boxes)
         conf = torch.cat((scale1_conf, scale2_conf, scale3_conf, scale4_conf, scale5_conf, scale6_conf), dim=1)
         return coords, conf
 
-    
     def predict(self, x):
         """
         Perform non-maximum suppression (nms) efficiently during inference. By using a con- fidence threshold of 0.01,
