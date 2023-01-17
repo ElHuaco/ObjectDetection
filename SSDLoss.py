@@ -7,73 +7,66 @@
 # La loss consta de dos partes:
 # - Localization loss: compara las coordenadas de los pares de cajas con relación positiva utilizando una Smooth L1
 # - Confidence loss: utiliza cross entropy (log(softmax)) para:
-    # - los pares positivos: utilizando la confidence correspondiente a la categoría del match
-    # - las cajas de todo pares negativos: utilizando la confidence más alta, con el fin de reducirla. No se utilizarán todas, 
-    # si no que se escogeran las de mayor pérdida hasta tener un radio de hasta 3:1 con los pares positivos
+#   - los pares positivos: utilizando la confidence correspondiente a la categoría del match
+#   - las cajas de todo pares negativos: utilizando la confidence más alta, con el fin de reducirla.
+#    No se utilizarán todas, si no que se escogeran las de mayor pérdida hasta tener un radio de hasta 3:1
+#    con los pares positivos
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision
 from utils import matching
 
 
-def SSDloss(pred_boxes, pred_confidences, gt_boxes, gt_labels, hard_mining_ratio=3, smoothL1_beta=1.0):
-    """
-    input: pred_boxes - (N, 4) - 4 coordinates for every predicted box (top-left and bottom-right corners)
-    input: pred_confidences - (N, num_categories) - confidence for every category in each box
-    input: gt_boxes - (M, 4) - 4 coordinates for every ground truth box (top-left and bottom-right corners)
-    input: gt_labels - (M, c) - 1 value for every ground truth box, corresponding to its category (from 0 to num_categories)
-    
-    output: loss - total loss (confidence + location)
-    """
-    
-    # Define location loss type
-    smoothL1 = nn.SmoothL1Loss(reduction='mean', beta=smoothL1_beta)
-    
-    # Compute matching between predictions and ground truth boxes
-    matches = matching(pred_boxes, gt_boxes) # (N, M) tensor of booleans relating predictions and GT boxes
-    total_matches = matches.sum()
-    
-    # Get loss for every box
-    matches_loss = 0
-    loc_loss = 0
-    negative_losses = torch.empty(size=(0, gt.size(0)))
-    for i, pred_box in enumerate(pred_boxes):
-        # For each predicted box get the matching GTs and their labels
-        row_mask = matches[i, :]  # should be a 1-dim tensor of length M - tipo [False, True, True, ...]
-        box_matches = row_mask.sum()
-        
-        # Softmax of current box confidences
-        conf_softmax = F.softmax(pred_confidences[i])
-        
-        # Check if current box matches with a ground truth
-        if box_matches != 0:   
-            # if it has one or more matches, find to which GT boxes and compute the location and confidence loss
-            match_boxes = gt_boxes[row_mask] # should give a tensor (n_matches, 4)
-            match_labels = torch.argwhere(gt_labels) # should give a tensor (n_matches, 1)
-                    
-            # Loss
-            for label, GT_box in zip(match_labels, match_boxes):
-                # Confidence loss for the matching category of each GT box
-                matches_loss += torch.log(conf_softmax[label])
-                # location loss
-                loc_loss += smoothL1(pred_box, GT_box)
-        else:
-            # if it is a negative box, save its greater confidence loss (softmax)
-            negative_losses = torch.cat(negative_losses, torch.max(conf_softmax))
+class SSDLoss(nn.Module):
+    def __init__(self, hard_mining_ratio=3, smoothL1_beta=1.0):
+        super(SSDLoss, self).__init__()
+        self.smoothL1 = nn.SmoothL1Loss(reduction='mean', beta=smoothL1_beta)
+        self.hmr = hard_mining_ratio
 
-    
-    # Hard negative mining
-    sorted_negatives, indices = torch.sort(negative_losses, descending=True)
-    try:
-        kept_neg_losses = sorted_negatives[:(hard_mining_ratio*total_matches)]
-    except IndexError:
-        kept_neg_losses = sorted_negatives
-        
-    nomatch_loss = (torch.log(1+kept_neg_losses)).sum()
-    
-    # Total confidence loss
-    conf_loss = -matches_loss + nomatch_loss
-    
-    return (conf_loss + loc_loss) / total_matches
+    def forward(self, pred_boxes, pred_confidences, gt_boxes, gt_labels):
+        # Compute matching between predictions and ground truth boxes
+        matches = matching(pred_boxes, gt_boxes)  # (N, M) tensor of booleans relating predictions and GT boxes
+        total_matches = matches.sum()
+
+        # Get loss for every box
+        matches_loss = 0
+        loc_loss = 0
+        negative_losses = torch.empty(size=(0, gt_labels.size(0)))
+        for i, pred_box in enumerate(pred_boxes):
+            # For each predicted box get the matching GTs and their labels
+            row_mask = matches[i, :]  # should be a 1-dim tensor of length M - tipo [False, True, True, ...]
+            box_matches = row_mask.sum()
+
+            # Softmax of current box confidences
+            conf_softmax = F.softmax(pred_confidences[i])
+
+            # Check if current box matches with a ground truth
+            if box_matches != 0:
+                # if it has one or more matches, find to which GT boxes and compute the location and confidence loss
+                match_boxes = gt_boxes[row_mask]  # should give a tensor (n_matches, 4)
+                match_labels = torch.argwhere(gt_labels)  # should give a tensor (n_matches, 1)
+
+                # Loss
+                for label, GT_box in zip(match_labels, match_boxes):
+                    # Confidence loss for the matching category of each GT box
+                    matches_loss += torch.log(conf_softmax[label])
+                    # location loss
+                    loc_loss += self.smoothL1(pred_box, GT_box)
+            else:
+                # if it is a negative box, save its greater confidence loss (softmax)
+                negative_losses = torch.cat(negative_losses, torch.max(conf_softmax))
+
+        # Hard negative mining
+        sorted_negatives, indices = torch.sort(negative_losses, descending=True)
+        try:
+            kept_neg_losses = sorted_negatives[:(self.hmr * total_matches)]
+        except IndexError:
+            kept_neg_losses = sorted_negatives
+
+        nomatch_loss = (torch.log(1 + kept_neg_losses)).sum()
+
+        # Total confidence loss
+        conf_loss = -matches_loss + nomatch_loss
+
+        return (conf_loss + loc_loss) / total_matches
