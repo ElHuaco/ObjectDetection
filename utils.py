@@ -10,8 +10,8 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
     # Relaciona las ground truth boxes con las predicted boxes; llamamos negativos a todos los pares cuya Jaccard similarity < 0.5
     
     '''
-    input: predicted_boxes - (N, 4) - top-left and bottom-right coordinates of the box - (n_boxes, (x1, y1, x2, y2))
-    input: target_boxes - (M, 4) - top-left and bottom-right coordinates of the box - (n_boxes, (x1, y1, x2, y2))
+    input: predicted_boxes - (N, 4) - coordinates of the box - (n_boxes, (cx, cy, w, h))
+    input: target_boxes - (M, 4) - top-left and width, height coordinates of the box - (n_boxes, (x1, y1, w, h))
 
     output: matching - (N, M) - boolean type 
     '''
@@ -19,10 +19,10 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
     # Calcular la intersección
     # Create 4 tensors (N, M, 1) that compare the 4 values for each pair of boxes
     # This gives us the top-left and bottom-right corners of the intersection
-    inter_x1 = torch.max(predicted_boxes[:, None, 0], target_boxes[None, :, 0])
-    inter_y1 = torch.max(predicted_boxes[:, None, 1], target_boxes[None, :, 1])
-    inter_x2 = torch.min(predicted_boxes[:, None, 2], target_boxes[None, :, 2])
-    inter_y2 = torch.min(predicted_boxes[:, None, 3], target_boxes[None, :, 3])
+    inter_x1 = torch.max(predicted_boxes[:, None, 0] - predicted_boxes[:, None, 2]/2, target_boxes[None, :, 0])
+    inter_y1 = torch.max(predicted_boxes[:, None, 1] - predicted_boxes[:, None, 3]/2, target_boxes[None, :, 1])
+    inter_x2 = torch.min(predicted_boxes[:, None, 0] + predicted_boxes[:, None, 2]/2, target_boxes[None, :, 0] + target_boxes[None, :, 2])
+    inter_y2 = torch.min(predicted_boxes[:, None, 1] + predicted_boxes[:, None, 3]/2, target_boxes[None, :, 1] + target_boxes[None, :, 3])
 
     # Obtain the dimensions of the intersection. If it's negative, no intersection -> set to 0.
     inter_W = torch.clamp(inter_x2 - inter_x1, min=0)
@@ -32,8 +32,8 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
     A_inter = inter_H*inter_W # size (N, M, 1)
 
     # Area of boxes
-    A_predicted = (predicted_box[:, 2] - predicted_box[:, 0])*(predicted_box[:, 3] - predicted_box[:, 1]) # size (N, 1)
-    A_target = (target_box[:, 2] - target_box[:, 0])*(target_box[:, 3] - target_box[:, 1]) # size (M, 1)
+    A_predicted = predicted_box[:, 2]*predicted_box[:, 3] # size (N, 1)
+    A_target = target_box[:, 2]*target_box[:, 3] # size (M, 1)
 
     # Union area - broadcast values in A_predicted to add each of the areas to every area in A_target
     A_union = A_predicted[:, None] + A_target - A_inter # size (N, M, 1)
@@ -54,25 +54,17 @@ def offsets2coords(offsets, default_boxes):
     input: offsets - (B, 4*n_boxes, W, H) - coords in the form (cx, cy, w, h)
     input: default_boxes - (n_boxes*W*H, 4) - coords in the form (cx, cy, w, h)
     
-    output: coordinates - (n_boxes, 4) - coordinates of the predicted boxes (top-left, bottom-right)
+    output: coordinates - (n_boxes, 4) - coordinates of the predicted boxes (cx, cy, w, h)
     '''
     
     predicted_boxes = torch.empty_like(offsets)
     
     # Get centers (cx, cy) of predicted boxes
-    predicted_boxes[:, 2:] = offsets[:, 2:]*default_boxes[:, :2] + default_boxes[:, 2:]
+    predicted_boxes[:, :2] = offsets[:, :2]*default_boxes[:, 2:] + default_boxes[:, :2]
     # Get w, h of predicted boxes
-    predicted_boxes[:, :2] = torch.exp(offsets[:, :2])*default_boxes[:, :2]
+    predicted_boxes[:, 2:] = torch.exp(offsets[:, 2:])*default_boxes[:, 2:]
     
-    # Transform to appropriate coordinates
-    coordinates = torch.empty_like(offsets)
-    
-    coordinates[:, 0] = predicted_boxes[:, 0] - predicted_boxes[:, 2]/2
-    coordinates[:, 1] = predicted_boxes[:, 1] + predicted_boxes[:, 3]/2
-    coordinates[:, 2] = predicted_boxes[:, 0] + predicted_boxes[:, 2]/2
-    coordinates[:, 3] = predicted_boxes[:, 1] - predicted_boxes[:, 3]/2
-    
-    return coordinates
+    return predicted_boxes
 
 
 # Default boxes for training for each scale
@@ -98,9 +90,7 @@ def create_FM_boxes(aspect_ratios, scale, FM_size, extra_box_scale=None):
     total_boxes = FM_size**2*n_boxes
     default_boxes = torch.empty(size=(total_boxes, 4))
     
-    prev_indx = 0
-    i = 0
-    j = 0
+    prev_indx, i, j = 0, 0, 0
     # Set centers and store the coordinates
     for pix_indx in torch.arange(n_boxes, total_boxes+1, n_boxes):
         default_boxes[prev_indx:pix_indx, 2] = torch.Tensor(widths)
@@ -139,7 +129,7 @@ def create_all_boxes(FM_sizes = [38, 19, 10, 5, 3, 1]):
         try:
             extra_box = (scales[k]*scales[k+1])**(1/2)
         except IndexError:
-            additional_scale = 1.
+            extra_box = 1.
             print('entered exception')
         default_boxes = torch.cat((default_boxes, create_FM_boxes(aspect_ratios = aspect_ratios[k],
                                                                   scale = scales[k], 
