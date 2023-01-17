@@ -46,7 +46,7 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
     jaccard = A_inter/A_union 
 
     # Matching value en función de la Jaccard similarity y el threshold
-    matches = (jaccard > threshold)
+    matches = (jaccard > threshold).squeeze(-1)
     
     return matches
 
