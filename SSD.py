@@ -18,8 +18,8 @@ class ScaleMap(nn.Module):
         self.norm1 = nn.BatchNorm2d(channels[1])
         self.conv2 = nn.Conv2d(channels[1], channels[2], kernel_size=3, stride=second_stride)
         self.norm2 = nn.BatchNorm2d(channels[2])
-        self.offset = nn.Conv2d(channels[2], self.box_num * 4, kernel_size=3, stride=1)
-        self.confid = nn.Conv2d(channels[2], self.box_num * self.class_num, kernel_size=3, stride=1)
+        self.offset = nn.Conv2d(channels[2], self.box_num * 4, kernel_size=3, stride=1, padding='same')
+        self.confid = nn.Conv2d(channels[2], self.box_num * self.class_num, kernel_size=3, stride=1, padding='same')
 
     def _init_weights(self, module):
         pass
@@ -27,7 +27,7 @@ class ScaleMap(nn.Module):
     def forward(self, x):
         x = F.relu(self.norm1(self.conv1(x)))
         x = F.relu(self.norm2(self.conv2(x)))
-        _, _, h, w = x.size
+        _, _, h, w = x.size()
         # Prediction offset shape: Batch x (H * W * Priors) x 4
         offset = torch.reshape(self.offset(x), (-1, h * w * self.box_num, 4))
         # Prediction offset shape: Batch x (H * W * Priors) x Classes
@@ -50,15 +50,15 @@ class SSD(nn.Module):
             raise ValueError('SSD base network')
         
         self.class_num = class_num
-        vgg_out = 42
-        self.scale1_offs = nn.Conv2d(vgg_out, 4 * 4, kernel_size=3, stride=1)
-        self.scale1_conf = nn.Conv2d(vgg_out, 4 * self.class_num, kernel_size=3, stride=1)
+        vgg_out = 512
+        self.scale1_offs = nn.Conv2d(vgg_out, 4 * 4, kernel_size=3, stride=1, padding='same')
+        self.scale1_conf = nn.Conv2d(vgg_out, 4 * self.class_num, kernel_size=3, stride=1, padding='same')
         self.conv1 = nn.Conv2d(vgg_out, 1024, kernel_size=3, stride=1)
         self.norm1 = nn.BatchNorm2d(1024)
         self.conv2 = nn.Conv2d(1024, 1024, kernel_size=1, stride=1)
         self.norm2 = nn.BatchNorm2d(1024)
-        self.scale2_offs = nn.Conv2d(1024, 6 * 4, kernel_size=3, stride=1)
-        self.scale2_conf = nn.Conv2d(1024, 6 * self.class_num, kernel_size=3, stride=1)
+        self.scale2_offs = nn.Conv2d(1024, 6 * 4, kernel_size=3, stride=1, padding='same')
+        self.scale2_conf = nn.Conv2d(1024, 6 * self.class_num, kernel_size=3, stride=1, padding='same')
         self.scale3 = ScaleMap((1024, 256, 512), 6, self.class_num, second_stride=2)
         self.scale4 = ScaleMap((512, 128, 256), 6, self.class_num, second_stride=2)
         self.scale5 = ScaleMap((256, 128, 256), 4, self.class_num, second_stride=1)
@@ -68,13 +68,15 @@ class SSD(nn.Module):
         pass
 
     def forward(self, x):
-        x = self.base_network(x)
-        _, _, h, w = x.size
-        scale1_offs = torch.reshape(self.scale1_offs(x), (-1, h * w * 4, 4))
-        scale1_conf = torch.reshape(self.scale1_conf(x), (-1, h * w * 4, self.class_num))
+        print('Before base network:', x.shape)
+        x, in_medias_res = self.base_network(x)
+        _, _, h, w = in_medias_res.size()
+        print('After base network:', in_medias_res.shape)
+        scale1_offs = torch.reshape(self.scale1_offs(in_medias_res), (-1, h * w * 4, 4))
+        scale1_conf = torch.reshape(self.scale1_conf(in_medias_res), (-1, h * w * 4, self.class_num))
         x = F.relu(self.norm1(self.conv1(x)))
         x = F.relu(self.norm2(self.conv2(x)))
-        _, _, h, w = x.size
+        _, _, h, w = x.size()
         scale2_offs = torch.reshape(self.scale2_offs(x), (-1, h * w * 6, 4))
         scale2_conf = torch.reshape(self.scale2_conf(x), (-1, h * w * 6, self.class_num))
         x, scale3_offs, scale3_conf = self.scale3(x)
