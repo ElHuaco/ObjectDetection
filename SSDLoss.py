@@ -38,7 +38,7 @@ def SSDloss(pred_boxes, pred_confidences, gt_boxes, gt_labels, hard_mining_ratio
     # Get loss for every box
     matches_loss = 0
     loc_loss = 0
-    negative_losses = []
+    negative_losses = torch.empty(size=(0, gt.size(0)))
     for i, pred_box in enumerate(pred_boxes):
         # For each predicted box get the matching GTs and their labels
         row_mask = matches[i,:] # should be a 1-dim tensor of length M - tipo [False, True, True, ...]
@@ -51,7 +51,7 @@ def SSDloss(pred_boxes, pred_confidences, gt_boxes, gt_labels, hard_mining_ratio
         if box_matches != 0:   
             # if it has one or more matches, find to which GT boxes and compute the location and confidence loss
             match_boxes = gt_boxes[row_mask] # should give a tensor (n_matches, 4)
-            match_labels = gt_labels[row_mask] # should give a tensor (n_matches, 1)
+            match_labels = torch.argwhere(gt_labels) # should give a tensor (n_matches, 1)
                     
             # Loss
             for label, GT_box in zip(match_labels, match_boxes):
@@ -61,14 +61,16 @@ def SSDloss(pred_boxes, pred_confidences, gt_boxes, gt_labels, hard_mining_ratio
                 loc_loss += smoothL1(pred_box, GT_box)
         else:
             # if it is a negative box, save its greater confidence loss (softmax)
-            negatives_losses.append(torch.max(conf_softmax))
+            negatives_losses = torch.cat(torch.max(conf_softmax))
         
-        
-    negative_losses = torch.stack(negative_losses) # make it a torch tensor
     
     # Hard negative mining
     sorted_negatives, indices = torch.sort(negatives, descending=True)
-    kept_neg_losses = sorted_negatives[:(hard_mining_ratio*total_matches)]
+    try:
+        kept_neg_losses = sorted_negatives[:(hard_mining_ratio*total_matches)]
+    except IndexError:
+        kept_neg_losses = sorted_negatives
+        
     nomatch_loss = (torch.log(1+kept_neg_losses)).sum()
     
     # Total confidence loss
