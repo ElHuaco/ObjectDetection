@@ -35,18 +35,18 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
     A_inter = inter_H*inter_W # size (N, M, 1)
 
     # Area of boxes
-    A_predicted = predicted_box[:, 2]*predicted_box[:, 3] # size (N, 1)
-    A_target = target_box[:, 2]*target_box[:, 3] # size (M, 1)
+    A_predicted = predicted_boxes[:, 2]*predicted_boxes[:, 3] # size (N, 1)
+    A_target = target_boxes[:, 2]*target_boxes[:, 3] # size (M, 1)
 
     # Union area - broadcast values in A_predicted to add each of the areas to every area in A_target
-    A_union = A_predicted[:, None] + A_target - A_inter # size (N, M, 1)
+    A_union = A_predicted[:, None] + A_target - A_inter # size (N, M)
 
     # Jaccard coef: intersection divided by the union of the sample sets - measures similarity between 2 finite sets
     # elementwise division to get the jaccard similarity for every pair of boxes
     jaccard = A_inter/A_union 
 
     # Matching value en función de la Jaccard similarity y el threshold
-    matches = (jaccard > threshold).squeeze(-1)
+    matches = (jaccard > threshold)
     
     return matches
 
@@ -54,18 +54,18 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
 # Use predefined boxes and offsets to get the coordinates of predicted boxes in the input image scale
 def offsets2coords(offsets, default_boxes):
     '''
-    input: offsets - (B, 4*n_boxes, W, H) - coords in the form (cx, cy, w, h)
-    input: default_boxes - (n_boxes*W*H, 4) - coords in the form (cx, cy, w, h)
+    input: offsets - (B, 8732, 4) - coords in the form (cx, cy, w, h)
+    input: default_boxes - (8732, 4) - coords in the form (cx, cy, w, h)
     
-    output: coordinates - (n_boxes, 4) - coordinates of the predicted boxes (cx, cy, w, h)
+    output: coordinates - (B, 8732, 4) - coordinates of the predicted boxes (cx, cy, w, h)
     '''
     
     predicted_boxes = torch.empty_like(offsets)
     
     # Get centers (cx, cy) of predicted boxes
-    predicted_boxes[:, :2] = offsets[:, :2]*default_boxes[:, 2:] + default_boxes[:, :2]
+    predicted_boxes[:, :, :2] = offsets[:, :, :2]*default_boxes[:, 2:] + default_boxes[:, :2]
     # Get w, h of predicted boxes
-    predicted_boxes[:, 2:] = torch.exp(offsets[:, 2:])*default_boxes[:, 2:]
+    predicted_boxes[:, :, 2:] = torch.exp(offsets[:, :, 2:])*default_boxes[:, 2:]
     
     return predicted_boxes
 
@@ -117,7 +117,7 @@ def set_scales(scale_min, scale_max, n_scales):
     return scales
 
     
-def create_all_boxes(FM_sizes = (8, 19, 10, 5, 3, 1)):
+def create_all_boxes(FM_sizes = (38, 19, 10, 5, 3, 1)):
        
     aspect_ratios = ([1., 2., 0.5],
                      [1., 2., 3., 0.5, .333],
@@ -133,7 +133,6 @@ def create_all_boxes(FM_sizes = (8, 19, 10, 5, 3, 1)):
             extra_box = (scales[k]*scales[k+1])**(1/2)
         except IndexError:
             extra_box = 1.
-            print('entered exception')
         default_boxes = torch.cat((default_boxes, create_FM_boxes(aspect_ratios = aspect_ratios[k],
                                                                   scale = scales[k], 
                                                                   FM_size = FM_sizes[k], 
