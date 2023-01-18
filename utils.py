@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 import numpy as np
-
+DEVICE = (torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'))
 # Useful functions for training SSD
 
 
@@ -68,8 +68,6 @@ def offsets2coords(offsets, default_boxes):
     predicted_boxes[:, :, 2:] = torch.exp(offsets[:, :, 2:])*default_boxes[:, 2:]
     
     return predicted_boxes
-
-
 # Default boxes for training for each scale
 def create_FM_boxes(aspect_ratios, scale, FM_size, extra_box_scale=None):
     '''
@@ -137,4 +135,4 @@ def create_all_boxes(FM_sizes = (38, 19, 10, 5, 3, 1)):
                                                                   scale = scales[k], 
                                                                   FM_size = FM_sizes[k], 
                                                                   extra_box_scale=extra_box)))
-    return default_boxes
+    return default_boxes.to(device=DEVICE)
