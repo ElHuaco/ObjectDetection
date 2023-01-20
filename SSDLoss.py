@@ -17,23 +17,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 from utils import matching
 
-
 class SSDLoss(nn.Module):
-    def __init__(self, hard_mining_ratio=3, smoothL1_beta=1.0):
+    def __init__(self, hard_mining_ratio=3, smoothL1_beta=1.0, device=torch.device('cpu')):
         super(SSDLoss, self).__init__()
         self.smoothL1 = nn.SmoothL1Loss(reduction='mean', beta=smoothL1_beta)
         self.hmr = hard_mining_ratio
+        self.device = device
 
     def forward(self, pred_boxes, pred_confidences, gt_boxes, gt_labels):
         # Compute matching between predictions and ground truth boxes
-        
+
         matches_loss, nomatch_loss, loc_loss = 0, 0, 0
         for b in range(pred_boxes.size(0)):
             matches = matching(pred_boxes[b], gt_boxes[b])  # (N, M) tensor of booleans relating predictions and GT boxes
             total_matches = matches.sum()
-
+            negative_losses = torch.empty(size=((1,))).to(device=self.device)
             # Get loss for every box
-            negative_losses = torch.empty(size=((1,)))
             for i, pred_box in enumerate(pred_boxes[b]):
                 # For each predicted box get the matching GTs and their labels
                 row_mask = matches[i, :]  # should be a 1-dim tensor of length M - tipo [False, True, True, ...]
@@ -45,7 +44,7 @@ class SSDLoss(nn.Module):
                 if box_matches != 0:
                     # if it has one or more matches, find to which GT boxes and compute the location and confidence loss
                     match_boxes = gt_boxes[b][row_mask]  # should give a tensor (n_matches, 4)
-                    match_labels = torch.argwhere(gt_labels[b])[:, 1]  # should give a tensor (n_matches, 1)
+                    match_labels = torch.argwhere(gt_labels[b][row_mask])[:, 1]  # should give a tensor (n_matches, 1)
                     
                     # Loss
                     for label, GT_box in zip(match_labels, match_boxes):
