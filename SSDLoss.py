@@ -27,45 +27,39 @@ class SSDLoss(nn.Module):
     def forward(self, pred_boxes, pred_confidences, gt_boxes, gt_labels):
         # Compute matching between predictions and ground truth boxes
 
-        matches_loss, nomatch_loss, loc_loss = 0, 0, 0
+        loss = 0.0
         for b in range(pred_boxes.size(0)):
             matches = matching(pred_boxes[b], gt_boxes[b])  # (N, M) tensor of booleans relating predictions and GT boxes
-            total_matches = matches.sum()
-            negative_losses = torch.empty(size=((1,))).to(device=self.device)
             # Get loss for every box
-            for i, pred_box in enumerate(pred_boxes[b]):
-                # For each predicted box get the matching GTs and their labels
-                row_mask = matches[i, :]  # should be a 1-dim tensor of length M - tipo [False, True, True, ...]
-                box_matches = row_mask.sum()
-
-                # Softmax of current box confidences
-                conf_softmax = F.softmax(pred_confidences[b, i], dim=0)
-                # Check if current box matches with a ground truth
-                if box_matches != 0:
-                    # if it has one or more matches, find to which GT boxes and compute the location and confidence loss
-                    match_boxes = gt_boxes[b][row_mask]  # should give a tensor (n_matches, 4)
-                    match_labels = torch.argwhere(gt_labels[b][row_mask])[:, 1]  # should give a tensor (n_matches, 1)
-                    
-                    # Loss
-                    for label, GT_box in zip(match_labels, match_boxes):
-                        # Confidence loss for the matching category of each GT box
-                        matches_loss += torch.log(conf_softmax[label])
-                        # location loss
-                        loc_loss += self.smoothL1(pred_box, GT_box)
-                else:
-                    # if it is a negative box, save its greater confidence loss (softmax)
-                    negative_losses = torch.cat((negative_losses, torch.max(conf_softmax).unsqueeze(0)))
+            box_matches = matches.sum(dim=1, dtype=torch.bool)
+            total_matches = box_matches.sum()
+            conf_softmax = F.softmax(pred_confidences[b], dim=1)
+            
+            # Get the indices of the matches
+            indx_matches, indx_matches2 = torch.argwhere(matches), torch.argwhere(matches)
+            
+            # Location loss
+            coords_matches_gt = torch.index_select(gt_boxes[b], 0, indx_matches[:, 1])
+            coords_matches_pred = torch.index_select(pred_boxes[b], 0, indx_matches[:, 0])
+            loc_loss = self.smoothL1(coords_matches_pred, coords_matches_gt)
+            print(loc_loss)
+            
+            # Positive confidences loss
+            # Gave RunningError for backprop: variable re-declaration is inplace and references itself
+            indx_matches2[:,1] = torch.argwhere(torch.index_select(gt_labels[b], 0, indx_matches[:, 1]))[:,1]
+            confs_matches_pred = conf_softmax[indx_matches2[:,0], indx_matches2[:,1]]
+            matches_loss = torch.sum(torch.log(confs_matches_pred))
 
             # Hard negative mining
-            sorted_negatives, indices = torch.sort(negative_losses, descending=True)
+            # nope: conf_softmax2 = conf_softmax.clone()
+            negative_losses = conf_softmax[torch.logical_not(box_matches)] # da tensor de softmax(confidences) de pred_boxes sin match
+            negative_losses = torch.max(negative_losses, dim=1) # coge los maximos solo
+            sorted_negatives, indices = torch.sort(negative_losses.values, descending=True)
             try:
                 kept_neg_losses = sorted_negatives[:(self.hmr * total_matches)]
             except IndexError:
                 kept_neg_losses = sorted_negatives
-
-            nomatch_loss += (torch.log(1 + kept_neg_losses)).sum()
-        
-        # Total confidence loss
-        conf_loss = -matches_loss + nomatch_loss
-        
-        return (conf_loss + loc_loss) / total_matches
+            
+            nomatch_loss = torch.sum(torch.log(1 + kept_neg_losses))
+            loss += (-matches_loss + nomatch_loss + loc_loss) / total_matches
+        return loss

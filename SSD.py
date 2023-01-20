@@ -93,7 +93,7 @@ class SSD(nn.Module):
         conf = torch.cat((scale1_conf, scale2_conf, scale3_conf, scale4_conf, scale5_conf, scale6_conf), dim=1)
         return coords, conf
 
-    def predict(self, x, top=200):
+    def predict(self, x, min_conf=0.01, max_overlap=0.45, top=200):
         """
         Perform non-maximum suppression (nms) efficiently during inference. By using a confidence threshold of 0.01,
         we can filter out most boxes.
@@ -105,13 +105,13 @@ class SSD(nn.Module):
             for c in range(len(self.class_num)):
                 class_conf_sorted, indeces = torch.sort(conf[b, :, c], dim=0)
                 for row, pred in enumerate(class_conf_sorted[:-1]):
-                    if pred > 0.01:
+                    if pred > min_conf:
                         non_overlapping = torch.logical_not(
-                            matching(coords[b, indeces[row], c], coords[b, indeces[row+1:], c], threshold=0.45))
+                            matching(coords[b, indeces[row], c], coords[b, indeces[row+1:], c], threshold=max_overlap))
                         is_prediction[b, indeces[row+1:], c] *= non_overlapping.squeeze(0)
                     else:
                         is_prediction[b, indeces[row], c] = False
         is_prediction = torch.sum(is_prediction, dim=1, dtype=torch.bool)
-        coords = coords[is_prediction][:, :200, :]
-        conf = conf[is_prediction][:, :200, :]
+        coords = coords[is_prediction][:, :top, :]
+        conf = conf[is_prediction][:, :top, :]
         return coords, conf
