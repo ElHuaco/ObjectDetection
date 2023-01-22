@@ -42,9 +42,9 @@ class ScaleMap(nn.Module):
         return x, offset, confid
 
 
-class SSD(nn.Module):
+class SSDmodel(nn.Module):
     def __init__(self, in_channels=3, base='vgg', class_num=2):
-        super(SSD, self).__init__()
+        super(SSDmodel, self).__init__()
         # Default boxes
         self.predefined_boxes = create_all_boxes()
         
@@ -100,18 +100,21 @@ class SSD(nn.Module):
         We then apply nms with jaccard overlap of 0.45 per class and keep the top 200 detections per image.
         """
         coords, conf = self.forward(x)
-        is_prediction = torch.ones(conf.shape, dtype=torch.bool)
-        for b in range(len(coords.shape[0])):
-            for c in range(len(self.class_num)):
+        pred_coords, pred_conf = list([None] * coords.shape[0]), list([None] * conf.shape[0])
+        for b in range(coords.shape[0]):
+            is_prediction = torch.ones(conf[b].shape, dtype=torch.bool).cuda()
+            for c in range(self.class_num):
                 class_conf_sorted, indeces = torch.sort(conf[b, :, c], dim=0)
                 for row, pred in enumerate(class_conf_sorted[:-1]):
                     if pred > min_conf:
                         non_overlapping = torch.logical_not(
-                            matching(coords[b, indeces[row], c], coords[b, indeces[row+1:], c], threshold=max_overlap))
-                        is_prediction[b, indeces[row+1:], c] *= non_overlapping.squeeze(0)
+                            matching(coords[b, indeces[row], :].unsqueeze(0), coords[b, indeces[row+1:], :],
+                                     threshold=max_overlap))
+                        is_prediction[indeces[row+1:], c] *= non_overlapping.squeeze(0)
                     else:
-                        is_prediction[b, indeces[row], c] = False
-        is_prediction = torch.sum(is_prediction, dim=1, dtype=torch.bool)
-        coords = coords[is_prediction][:, :top, :]
-        conf = conf[is_prediction][:, :top, :]
-        return coords, conf
+                        is_prediction[indeces[row], c] = False
+            is_prediction = torch.sum(is_prediction, dim=1, dtype=torch.bool)
+            match_idx = torch.argwhere(is_prediction)
+            pred_conf[b] = conf[b, match_idx[:top, 0], :]
+            pred_coords[b] = coords[b, match_idx[:top, 0], :] 
+        return pred_coords, pred_conf

@@ -29,28 +29,30 @@ class SSDLoss(nn.Module):
 
         loss = 0.0
         for b in range(pred_boxes.size(0)):
-            print('    computing matches...')
             matches = matching(pred_boxes[b], gt_boxes[b])  # (N, M) tensor of booleans relating predictions and GT boxes
             # Get loss for every box
             box_matches = matches.sum(dim=1, dtype=torch.bool)
             total_matches = box_matches.sum()
             conf_softmax = F.softmax(pred_confidences[b], dim=1)
             
-            # Get the indices of the matches
-            indx_matches, indx_matches2 = torch.argwhere(matches), torch.argwhere(matches)
-            
-            # Location loss
-            coords_matches_gt = torch.index_select(gt_boxes[b], 0, indx_matches[:, 1])
-            coords_matches_pred = torch.index_select(pred_boxes[b], 0, indx_matches[:, 0])
-            loc_loss = self.smoothL1(coords_matches_pred, coords_matches_gt)
-            print(loc_loss)
-            
-            # Positive confidences loss
-            # Gave RunningError for backprop: variable re-declaration is inplace and references itself
-            indx_matches2[:,1] = torch.argwhere(torch.index_select(gt_labels[b], 0, indx_matches[:, 1]))[:,1]
-            confs_matches_pred = conf_softmax[indx_matches2[:,0], indx_matches2[:,1]]
-            matches_loss = torch.sum(torch.log(confs_matches_pred))
+            if total_matches > 0:
+                # Get the indices of the matches
+                indx_matches, indx_matches2 = torch.argwhere(matches), torch.argwhere(matches)
 
+                # Location loss
+                coords_matches_gt = torch.index_select(gt_boxes[b], 0, indx_matches[:, 1])
+                coords_matches_pred = torch.index_select(pred_boxes[b], 0, indx_matches[:, 0])
+                loc_loss = self.smoothL1(coords_matches_pred, coords_matches_gt)
+
+                # Positive confidences loss
+                # Gave RunningError for backprop: variable re-declaration is inplace and references itself
+                indx_matches2[:,1] = torch.argwhere(torch.index_select(gt_labels[b], 0, indx_matches[:, 1]))[:,1]
+                confs_matches_pred = conf_softmax[indx_matches2[:,0], indx_matches2[:,1]]
+                matches_loss = torch.sum(torch.log(confs_matches_pred))
+            else:
+                matches_loss, loc_loss = 0, 0
+                total_matches = 1000
+                
             # Hard negative mining
             # nope: conf_softmax2 = conf_softmax.clone()
             negative_losses = conf_softmax[torch.logical_not(box_matches)] # da tensor de softmax(confidences) de pred_boxes sin match
@@ -60,6 +62,9 @@ class SSDLoss(nn.Module):
                 kept_neg_losses = sorted_negatives[:(self.hmr * total_matches)]
             except IndexError:
                 kept_neg_losses = sorted_negatives
+
             nomatch_loss = torch.sum(torch.log(1 + kept_neg_losses))
+                
             loss += (-matches_loss + nomatch_loss + loc_loss) / total_matches
+
         return loss
