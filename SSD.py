@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torchvision
 import numpy as np
 from VGG16 import truncated_VGG16
+from VGG16_theirs import VGGBase
 from utils import matching, create_all_boxes, offsets2coords
 
 
@@ -22,8 +23,11 @@ class ScaleMap(nn.Module):
         self.offset = nn.Conv2d(channels[2], self.box_num * 4, kernel_size=kernel_size, stride=1, padding='same')
         self.confid = nn.Conv2d(channels[2], self.box_num * self.class_num, kernel_size=kernel_size, stride=1, padding='same')
 
-    def _init_weights(self, module):
-        pass
+    def _init_weights(self, module):        
+        if isinstance(module, nn.Conv2d):
+            nn.init.xavier_normal_(module)
+            if module.bias is not None:
+                module.bias.data.zero_()
 
     def forward(self, x):
         x = self.conv1(x)
@@ -50,9 +54,8 @@ class SSDmodel(nn.Module):
         
         # Base architecture
         if base == 'vgg':
-            self.base_network = truncated_VGG16(in_channels)
-        # elif base == 'inception':
-        #    self.base_network = Inception()
+            #self.base_network = truncated_VGG16(in_channels)
+            self.base_network = VGGBase()
         else:
             raise ValueError('SSD base network')
         
@@ -71,16 +74,19 @@ class SSDmodel(nn.Module):
         self.scale5 = ScaleMap((256, 128, 256), 4, self.class_num, second_stride=1, second_pad=0)
         self.scale6 = ScaleMap((256, 128, 256), 4, self.class_num, second_stride=1, kernel_size=1, second_pad=0, norm=False)
 
-    def _init_weights(self, module):
-        pass
+    def _init_weights(self, module):        
+        if isinstance(module, nn.Conv2d):
+            nn.init.xavier_normal_(module)
+            if module.bias is not None:
+                module.bias.data.zero_()
 
     def forward(self, x):
-        x, in_medias_res = self.base_network(x)
+        in_medias_res, x = self.base_network(x)
         _, _, h, w = in_medias_res.size()
         scale1_offs = torch.reshape(self.scale1_offs(in_medias_res), (-1, h * w * 4, 4))
         scale1_conf = torch.reshape(self.scale1_conf(in_medias_res), (-1, h * w * 4, self.class_num))
-        x = F.relu(self.norm1(self.conv1(x)))
-        x = F.relu(self.norm2(self.conv2(x)))
+        #x = F.relu(self.norm1(self.conv1(x)))
+        #x = F.relu(self.norm2(self.conv2(x)))
         _, _, h, w = x.size()
         scale2_offs = torch.reshape(self.scale2_offs(x), (-1, h * w * 6, 4))
         scale2_conf = torch.reshape(self.scale2_conf(x), (-1, h * w * 6, self.class_num))
@@ -93,28 +99,31 @@ class SSDmodel(nn.Module):
         conf = torch.cat((scale1_conf, scale2_conf, scale3_conf, scale4_conf, scale5_conf, scale6_conf), dim=1)
         return coords, conf
 
-    def predict(self, x, min_conf=0.01, max_overlap=0.45, top=200):
-        """
-        Perform non-maximum suppression (nms) efficiently during inference. By using a confidence threshold of 0.01,
-        we can filter out most boxes.
-        We then apply nms with jaccard overlap of 0.45 per class and keep the top 200 detections per image.
-        """
+    def predict(self, x, min_conf=0.1, max_overlap=0.45, top=5):
         coords, conf = self.forward(x)
+        conf = F.softmax(conf, dim=2)
         pred_coords, pred_conf = list([None] * coords.shape[0]), list([None] * conf.shape[0])
         for b in range(coords.shape[0]):
             is_prediction = torch.ones(conf[b].shape, dtype=torch.bool).cuda()
             for c in range(self.class_num):
-                class_conf_sorted, indeces = torch.sort(conf[b, :, c], dim=0)
+                class_conf_sorted, indeces = torch.sort(conf[b, :, c], dim=0, descending=True)
                 for row, pred in enumerate(class_conf_sorted[:-1]):
                     if pred > min_conf:
-                        non_overlapping = torch.logical_not(
-                            matching(coords[b, indeces[row], :].unsqueeze(0), coords[b, indeces[row+1:], :],
-                                     threshold=max_overlap))
-                        is_prediction[indeces[row+1:], c] *= non_overlapping.squeeze(0)
+                        #print(f'{conf[b, indeces[row], c] = }')
+                        #print(f'{conf[b, indeces[row+1:row+5], c] = }')
+                        #print(f'\t{coords[b, indeces[row], :] = }')
+                        #print(f'\t{coords[b, indeces[row+1:row+5], :] = }')
+                        non_overlapping = torch.logical_not(matching(coords[b, indeces[row], :].unsqueeze(0),
+                                                                     coords[b, indeces[row+1:], :],
+                                                                     threshold=max_overlap))
+                        #print(f'\t{non_overlapping[0, :4] = }')
+                        is_prediction[indeces[row+1:], c] = torch.logical_and(is_prediction[indeces[row+1:], c],
+                                                                              non_overlapping.squeeze(0))
+                        #print(f'\t{is_prediction[indeces[row+1:row+5], c] = }')
                     else:
                         is_prediction[indeces[row], c] = False
             is_prediction = torch.sum(is_prediction, dim=1, dtype=torch.bool)
             match_idx = torch.argwhere(is_prediction)
             pred_conf[b] = conf[b, match_idx[:top, 0], :]
-            pred_coords[b] = coords[b, match_idx[:top, 0], :] 
+            pred_coords[b] = coords[b, match_idx[:top, 0], :]
         return pred_coords, pred_conf

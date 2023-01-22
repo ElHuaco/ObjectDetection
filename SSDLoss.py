@@ -20,7 +20,7 @@ from utils import matching
 class SSDLoss(nn.Module):
     def __init__(self, hard_mining_ratio=3, smoothL1_beta=1.0, device=torch.device('cpu')):
         super(SSDLoss, self).__init__()
-        self.smoothL1 = nn.SmoothL1Loss(reduction='mean', beta=smoothL1_beta)
+        self.smoothL1 = nn.SmoothL1Loss(reduction='sum', beta=smoothL1_beta)
         self.hmr = hard_mining_ratio
         self.device = device
 
@@ -64,7 +64,8 @@ class SSDLoss(nn.Module):
                 kept_neg_losses = sorted_negatives
 
             nomatch_loss = torch.sum(torch.log(1 + kept_neg_losses))
-                
+            #print(f'Confidences loss: {(-matches_loss + nomatch_loss + loc_loss)}')
+            #print(f'Localization loss: {loc_loss}')
             loss += (-matches_loss + nomatch_loss + loc_loss) / total_matches
 
         return loss

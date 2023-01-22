@@ -119,22 +119,24 @@ class CocoDataSet(Dataset):
             # relative box coordinates w.r.t image size so that they transform accordingly
             target['boxes'][box_idx, :] = (box[0] / image.shape[2], box[1] / image.shape[1],
                                            box[2] / image.shape[2], box[3] / image.shape[1])
+            # gt coords (x, y, w, h) -> (cx, cy, w, h)
+            target['boxes'][box_idx, :2] = target['boxes'][box_idx, :2] + target['boxes'][box_idx, 2:] / 2
         # one-hot encoding
         target['labels'] = np.eye(len(self.cats))[self.labels[self.ids[index]]]
         if self.augmentation:
             if np.random.rand() < 0.5:
                 image = TF.hflip(image)
                 for box_idx in range(len(target['boxes'])):
-                    target['boxes'][box_idx, 0] = 1 - target['boxes'][box_idx, 0] - target['boxes'][box_idx, 2]
+                    target['boxes'][box_idx, 0] = 1 - target['boxes'][box_idx, 0]
         if self.transform:
             image = self.transform(image)
         if self.augmentation:
             rand = 2 * np.random.rand() - 1
-            image = TF.adjust_brightness(image,  1 + rand * self.augmentation)
+            image = TF.adjust_brightness(image, 1 + rand * self.augmentation)
             rand = 2 * np.random.rand() - 1
-            image = TF.adjust_contrast(image,  1 + rand * self.augmentation)
+            image = TF.adjust_contrast(image, 1 + rand * self.augmentation)
             rand = 2 * np.random.rand() - 1
-            image = TF.adjust_saturation(image,  1 + rand * self.augmentation)
+            image = TF.adjust_saturation(image, 1 + rand * self.augmentation)
             rand = np.random.rand() - 0.5
             image = TF.adjust_hue(image, rand * self.augmentation / 5)
             pass

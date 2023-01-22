@@ -14,7 +14,7 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
     
     '''
     input: predicted_boxes - (N, 4) - coordinates of the box - (n_boxes, (cx, cy, w, h))
-    input: target_boxes - (M, 4) - top-left and width, height coordinates of the box - (n_boxes, (x1, y1, w, h))
+    input: target_boxes - (M, 4) - top-left and width, height coordinates of the box - (n_boxes, (cx, cy1, w, h))
 
     output: matching - (N, M) - boolean type 
     '''
@@ -22,10 +22,14 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
     # Calcular la intersección
     # Create 4 tensors (N, M, 1) that compare the 4 values for each pair of boxes
     # This gives us the top-left and bottom-right corners of the intersection
-    inter_x1 = torch.max(predicted_boxes[:, None, 0] - predicted_boxes[:, None, 2]/2, target_boxes[None, :, 0])
-    inter_y1 = torch.max(predicted_boxes[:, None, 1] - predicted_boxes[:, None, 3]/2, target_boxes[None, :, 1])
-    inter_x2 = torch.min(predicted_boxes[:, None, 0] + predicted_boxes[:, None, 2]/2, target_boxes[None, :, 0] + target_boxes[None, :, 2])
-    inter_y2 = torch.min(predicted_boxes[:, None, 1] + predicted_boxes[:, None, 3]/2, target_boxes[None, :, 1] + target_boxes[None, :, 3])
+    inter_x1 = torch.max(predicted_boxes[:, None, 0] - predicted_boxes[:, None, 2]/2,
+                         target_boxes[None, :, 0] - target_boxes[None, :, 2]/2)
+    inter_y1 = torch.max(predicted_boxes[:, None, 1] - predicted_boxes[:, None, 3]/2,
+                         target_boxes[None, :, 1] - target_boxes[None, :, 3]/2)
+    inter_x2 = torch.min(predicted_boxes[:, None, 0] + predicted_boxes[:, None, 2]/2,
+                         target_boxes[None, :, 0] + target_boxes[None, :, 2]/2)
+    inter_y2 = torch.min(predicted_boxes[:, None, 1] + predicted_boxes[:, None, 3]/2,
+                         target_boxes[None, :, 1] + target_boxes[None, :, 3]/2)
 
     # Obtain the dimensions of the intersection. If it's negative, no intersection -> set to 0.
     inter_W = torch.clamp(inter_x2 - inter_x1, min=0)
@@ -35,8 +39,8 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
     A_inter = inter_H*inter_W # size (N, M, 1)
 
     # Area of boxes
-    A_predicted = predicted_boxes[:, 2]*predicted_boxes[:, 3] # size (N, 1)
-    A_target = target_boxes[:, 2]*target_boxes[:, 3] # size (M, 1)
+    A_predicted = predicted_boxes[:, 2] * predicted_boxes[:, 3] # size (N)
+    A_target = target_boxes[:, 2] * target_boxes[:, 3] # size (M)
 
     # Union area - broadcast values in A_predicted to add each of the areas to every area in A_target
     A_union = A_predicted[:, None] + A_target - A_inter # size (N, M)
@@ -61,13 +65,14 @@ def offsets2coords(offsets, default_boxes):
     '''
     
     predicted_boxes = torch.empty_like(offsets)
-    
     # Get centers (cx, cy) of predicted boxes
     predicted_boxes[:, :, :2] = offsets[:, :, :2]*default_boxes[:, 2:] + default_boxes[:, :2]
+
     # Get w, h of predicted boxes
-    predicted_boxes[:, :, 2:] = torch.exp(offsets[:, :, 2:])*default_boxes[:, 2:]
+    predicted_boxes[:, :, 2:] = torch.exp(offsets[:, :, 2:]) * default_boxes[:, 2:]
     
     return predicted_boxes
+
 # Default boxes for training for each scale
 def create_FM_boxes(aspect_ratios, scale, FM_size, extra_box_scale=None):
     '''
@@ -136,3 +141,21 @@ def create_all_boxes(FM_sizes = (38, 19, 10, 5, 3, 1)):
                                                                   FM_size = FM_sizes[k], 
                                                                   extra_box_scale=extra_box)))
     return default_boxes.to(device=DEVICE)
+
+def decimate(tensor, m):
+    """
+    Decimate a tensor by a factor 'm', i.e. downsample by keeping every 'm'th value.
+
+    This is used when we convert FC layers to equivalent Convolutional layers, BUT of a smaller size.
+
+    :param tensor: tensor to be decimated
+    :param m: list of decimation factors for each dimension of the tensor; None if not to be decimated along a dimension
+    :return: decimated tensor
+    """
+    assert tensor.dim() == len(m)
+    for d in range(tensor.dim()):
+        if m[d] is not None:
+            tensor = tensor.index_select(dim=d,
+                                         index=torch.arange(start=0, end=tensor.size(d), step=m[d]).long())
+
+    return tensor
