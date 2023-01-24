@@ -24,12 +24,12 @@ class SSDLoss(nn.Module):
         self.hmr = hard_mining_ratio
         self.device = device
 
-    def forward(self, pred_boxes, pred_confidences, gt_boxes, gt_labels):
+    def forward(self, pred_boxes, pred_confidences, gt_boxes, gt_labels, default_boxes):
         # Compute matching between predictions and ground truth boxes
 
         loss = 0.0
         for b in range(pred_boxes.size(0)):
-            matches = matching(pred_boxes[b], gt_boxes[b])  # (N, M) tensor of booleans relating predictions and GT boxes
+            matches = matching(default_boxes, gt_boxes[b])  # (N, M) tensor of booleans relating predictions and GT boxes
             # Get loss for every box
             box_matches = matches.sum(dim=1, dtype=torch.bool)
             total_matches = box_matches.sum()

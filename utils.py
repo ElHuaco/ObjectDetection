@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torchvision
 import numpy as np
 DEVICE = (torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'))
+#DEVICE = torch.device('cpu')
 # Useful functions for training SSD
 
 
@@ -66,7 +67,7 @@ def offsets2coords(offsets, default_boxes):
     
     predicted_boxes = torch.empty_like(offsets)
     # Get centers (cx, cy) of predicted boxes
-    predicted_boxes[:, :, :2] = offsets[:, :, :2]*default_boxes[:, 2:] + default_boxes[:, :2]
+    predicted_boxes[:, :, :2] = offsets[:, :, :2] * default_boxes[:, 2:] + default_boxes[:, :2]
 
     # Get w, h of predicted boxes
     predicted_boxes[:, :, 2:] = torch.exp(offsets[:, :, 2:]) * default_boxes[:, 2:]
