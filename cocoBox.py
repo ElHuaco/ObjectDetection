@@ -5,6 +5,7 @@ import torchvision.transforms.functional as TF
 from torch.utils.data import Dataset, Subset, DataLoader
 from pycocotools.coco import COCO
 import numpy as np
+import random
 
 DATAPATH = '/mnt/NeuralNetworksDL/coco/'
 GRAYS = [498856, 6432, 84582, 457741, 11801, 427401, 821, 225717, 118895, 325387, 217886, 575029,
@@ -87,7 +88,11 @@ class CocoDataSet(Dataset):
                 img_ids += [x for x in temp if x not in img_ids]
         else:
             raise ValueError('Must fetch image intersection or union for multiple categories')
-        self.ids = [x for x in img_ids if x not in GRAYS]
+        indeces = random.sample(range(0, len(img_ids)), len(img_ids) - 1)
+        self.ids = []
+        for x in indeces:
+            if img_ids[x] not in GRAYS:
+                self.ids.append(img_ids[x])
         ann_ids = coco.getAnnIds(imgIds=self.ids, catIds=cat_ids, iscrowd=None)
         anns = coco.loadAnns(ann_ids)
         self.labels = {x: [] for x in self.ids}
