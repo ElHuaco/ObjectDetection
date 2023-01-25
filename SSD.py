@@ -3,8 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 import numpy as np
-from VGG16 import truncated_VGG16
-from VGG16_theirs import VGGBase
+from VGG16 import VGGBase
 from utils import matching, create_all_boxes, offsets2coords
 
 
@@ -54,7 +53,6 @@ class SSDmodel(nn.Module):
         
         # Base architecture
         if base == 'vgg':
-            #self.base_network = truncated_VGG16(in_channels)
             self.base_network = VGGBase()
         else:
             raise ValueError('SSD base network')
@@ -88,8 +86,6 @@ class SSDmodel(nn.Module):
         _, _, h, w = in_medias_res.size()
         scale1_offs = torch.reshape(self.scale1_offs(in_medias_res), (-1, h * w * 4, 4))
         scale1_conf = torch.reshape(self.scale1_conf(in_medias_res), (-1, h * w * 4, self.class_num))
-        #x = F.relu(self.norm1(self.conv1(x)))
-        #x = F.relu(self.norm2(self.conv2(x)))
         _, _, h, w = x.size()
         scale2_offs = torch.reshape(self.scale2_offs(x), (-1, h * w * 6, 4))
         scale2_conf = torch.reshape(self.scale2_conf(x), (-1, h * w * 6, self.class_num))
