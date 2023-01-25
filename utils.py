@@ -52,6 +52,8 @@ def matching(predicted_boxes, target_boxes, threshold=0.5):
 
     # Matching value en función de la Jaccard similarity y el threshold
     matches = (jaccard > threshold)
+    #print(f'{jaccard[matches] =}')
+    #print(f'{torch.argwhere(matches) =}')
     
     return matches
 

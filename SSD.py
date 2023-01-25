@@ -100,39 +100,33 @@ class SSDmodel(nn.Module):
         offs = torch.cat((scale1_offs, scale2_offs, scale3_offs, scale4_offs, scale5_offs, scale6_offs), dim=1)
         coords = offsets2coords(offs, self.predefined_boxes)
         conf = torch.cat((scale1_conf, scale2_conf, scale3_conf, scale4_conf, scale5_conf, scale6_conf), dim=1)
+        conf = F.softmax(conf, dim=2)
         return coords, conf
 
     def predict(self, x, min_conf=0.01, max_overlap=0.45, top=200):
-        # TODO: media ponderada de predicciones?
-        # TODO: pasar softmax a forward()
         coords, conf = self.forward(x)
-        conf = F.softmax(conf, dim=2)
         pred_coords = list([torch.empty(size=(1,4)).cuda()] * coords.shape[0])
         pred_conf = list([torch.empty(size=(1,1)).cuda()] * conf.shape[0])
-        #pred_coords = list([torch.empty(size=(1,4))] * coords.shape[0])
-        #pred_conf = list([torch.empty(size=(1,1))] * conf.shape[0])
         pred_labels = list([torch.empty(size=(1,1), dtype=torch.int32).cuda()] * conf.shape[0])
-        #pred_labels = list([torch.empty(size=(1,1), dtype=torch.int32)] * conf.shape[0])
         for b in range(coords.shape[0]):
             for c in range(self.class_num):
-                is_prediction = torch.ones(conf[b, :, c].shape, dtype=torch.bool).cuda()
-                #is_prediction = torch.ones(conf[b, :, c].shape, dtype=torch.bool)
-                class_conf_sorted, indeces = torch.sort(conf[b, :, c], dim=0, descending=True)
+                class_conf = conf[b, :, c]
+                class_conf_sorted, indeces = torch.sort(class_conf, dim=0, descending=True)
+                is_prediction = torch.ones(class_conf.shape, dtype=torch.bool).cuda() # Order here is the sorted indeces
                 for row, pred in enumerate(class_conf_sorted[:-1]):
-                    if pred > min_conf:
+                    if pred > min_conf:          
                         non_overlapping = torch.logical_not(matching(coords[b, indeces[row], :].unsqueeze(0),
                                                                      coords[b, indeces[row+1:], :],
-                                                                     threshold=max_overlap))
-                        is_prediction[indeces[row+1:]] = torch.logical_and(is_prediction[indeces[row+1:]],
+                                                                     threshold=max_overlap) )
+                        is_prediction[row+1:] = torch.logical_and(is_prediction[row+1:],
                                                                               non_overlapping.squeeze(0))
                     else:
-                        is_prediction[indeces[row]] = False
-                pred_conf[b] = torch.cat((pred_conf[b], conf[b, indeces[:top], c].unsqueeze(0).transpose(1, 0)))
-                pred_coords[b] = torch.cat((pred_coords[b], coords[b, indeces[:top], :]))
+                        is_prediction[row] = False
+                indeces = indeces[is_prediction][:top]
+                pred_conf[b] = torch.cat((pred_conf[b], class_conf[indeces].unsqueeze(0).transpose(1, 0)))
+                pred_coords[b] = torch.cat((pred_coords[b], coords[b, indeces, :]))
                 pred_labels[b] = torch.cat((pred_labels[b],
-                                            c * torch.ones(size=(len(indeces[:top]),1), dtype=torch.int32).cuda()))
-                #pred_labels[b] = torch.cat((pred_labels[b],
-                #                            c * torch.ones(size=(len(indeces[:top]),1), dtype=torch.int32)))
+                                            c * torch.ones(size=(len(indeces),1), dtype=torch.int32).cuda()))
             pred_coords[b] = pred_coords[b][1:, :]
             pred_conf[b] = pred_conf[b][1:, :]
             pred_labels[b] = pred_labels[b][1:, :]

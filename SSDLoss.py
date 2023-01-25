@@ -33,7 +33,7 @@ class SSDLoss(nn.Module):
             # Get loss for every box
             box_matches = matches.sum(dim=1, dtype=torch.bool)
             total_matches = box_matches.sum()
-            conf_softmax = F.softmax(pred_confidences[b], dim=1)
+            conf_softmax = pred_confidences[b]
             
             if total_matches > 0:
                 # Get the indices of the matches
