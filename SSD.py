@@ -80,6 +80,9 @@ class SSDmodel(nn.Module):
             if module.bias is not None:
                 module.bias.data.zero_()
 
+    def get_default_boxes(self):
+        return self.predefined_boxes
+
     def forward(self, x):
         in_medias_res, x = self.base_network(x)
         _, _, h, w = in_medias_res.size()
@@ -99,15 +102,21 @@ class SSDmodel(nn.Module):
         conf = torch.cat((scale1_conf, scale2_conf, scale3_conf, scale4_conf, scale5_conf, scale6_conf), dim=1)
         return coords, conf
 
-    def predict(self, x, min_conf=0.01, max_overlap=0.45, top=1):
+    def predict(self, x, min_conf=0.01, max_overlap=0.45, top=200):
+        # TODO: media ponderada de predicciones?
+        # TODO: pasar softmax a forward()
         coords, conf = self.forward(x)
         conf = F.softmax(conf, dim=2)
         pred_coords = list([torch.empty(size=(1,4)).cuda()] * coords.shape[0])
         pred_conf = list([torch.empty(size=(1,1)).cuda()] * conf.shape[0])
+        #pred_coords = list([torch.empty(size=(1,4))] * coords.shape[0])
+        #pred_conf = list([torch.empty(size=(1,1))] * conf.shape[0])
         pred_labels = list([torch.empty(size=(1,1), dtype=torch.int32).cuda()] * conf.shape[0])
+        #pred_labels = list([torch.empty(size=(1,1), dtype=torch.int32)] * conf.shape[0])
         for b in range(coords.shape[0]):
             for c in range(self.class_num):
                 is_prediction = torch.ones(conf[b, :, c].shape, dtype=torch.bool).cuda()
+                #is_prediction = torch.ones(conf[b, :, c].shape, dtype=torch.bool)
                 class_conf_sorted, indeces = torch.sort(conf[b, :, c], dim=0, descending=True)
                 for row, pred in enumerate(class_conf_sorted[:-1]):
                     if pred > min_conf:
@@ -122,6 +131,8 @@ class SSDmodel(nn.Module):
                 pred_coords[b] = torch.cat((pred_coords[b], coords[b, indeces[:top], :]))
                 pred_labels[b] = torch.cat((pred_labels[b],
                                             c * torch.ones(size=(len(indeces[:top]),1), dtype=torch.int32).cuda()))
+                #pred_labels[b] = torch.cat((pred_labels[b],
+                #                            c * torch.ones(size=(len(indeces[:top]),1), dtype=torch.int32)))
             pred_coords[b] = pred_coords[b][1:, :]
             pred_conf[b] = pred_conf[b][1:, :]
             pred_labels[b] = pred_labels[b][1:, :]
