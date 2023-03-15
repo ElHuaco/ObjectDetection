@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torchvision
 from utils import decimate
 
+# Object Detection base model - VGG16
 
 class VGGBase(nn.Module):
 
@@ -113,9 +114,9 @@ class VGGBase(nn.Module):
         state_dict['conv7.weight'] = decimate(conv_fc7_weight, m=[4, 4, None, None])  # (1024, 1024, 1, 1)
         state_dict['conv7.bias'] = decimate(conv_fc7_bias, m=[4])  # (1024)
 
-        # Note: an FC layer of size (K) operating on a flattened version (C*H*W) of a 2D image of size (C, H, W)...
-        # ...is equivalent to a convolutional layer with kernel size (H, W), input channels C, output channels K...
-        # ...operating on the 2D image of size (C, H, W) without padding
+        # Note that a FC layer of size (K) operating on a flattened version (C*H*W) of a 2D image of size (C, H, W)
+        # is equivalent to a convolutional layer with kernel size (H, W), input channels C, output channels K
+        # operating on the 2D image of size (C, H, W) without padding
 
         self.load_state_dict(state_dict)
 

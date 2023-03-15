@@ -6,7 +6,9 @@ import numpy as np
 from VGG16 import VGGBase
 from utils import matching, create_all_boxes, offsets2coords
 
+# SSD model
 
+# scale maps to obtain intermediate feature maps box coordinates and offsets
 class ScaleMap(nn.Module):
     def __init__(self, channels, box_num, class_num, second_stride, kernel_size=3, second_pad=1, norm=True):
         super(ScaleMap, self).__init__()
@@ -45,6 +47,7 @@ class ScaleMap(nn.Module):
         return x, offset, confid
 
 
+# main model
 class SSDmodel(nn.Module):
     def __init__(self, in_channels=3, base='vgg', class_num=2):
         super(SSDmodel, self).__init__()

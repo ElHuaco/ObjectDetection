@@ -5,9 +5,10 @@ import torchvision
 import numpy as np
 DEVICE = (torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'))
 #DEVICE = torch.device('cpu')
+
 # Useful functions for training SSD
 
-
+# matching strategy
 def matching(predicted_boxes, target_boxes, threshold=0.5):
 
     # Relaciona las ground truth boxes con las predicted boxes;
@@ -145,10 +146,10 @@ def create_all_boxes(FM_sizes = (38, 19, 10, 5, 3, 1)):
                                                                   extra_box_scale=extra_box)))
     return default_boxes.to(device=DEVICE)
 
+
+# Decimate a tensor by a factor 'm', i.e. downsample by keeping every 'm'th value.
 def decimate(tensor, m):
     """
-    Decimate a tensor by a factor 'm', i.e. downsample by keeping every 'm'th value.
-
     This is used when we convert FC layers to equivalent Convolutional layers, BUT of a smaller size.
 
     :param tensor: tensor to be decimated
